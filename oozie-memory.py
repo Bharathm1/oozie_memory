@@ -4,11 +4,11 @@ import os
 import xml.etree.ElementTree as ET
 import re
 from datetime import datetime
+import argparse
 
 def run_cmd(cmd):
     """Run a shell command and return output or raise error."""
     try:
-        #print(f"Executing command: {cmd}")
         output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, text=True)
         return output.strip()
     except subprocess.CalledProcessError as e:
@@ -57,21 +57,21 @@ def upload_workflow_xml(local_file, hadoop_path):
     run_cmd(cmd)
     print(f"Updated XML file successfully uploaded to: {hadoop_path}")
 
-def increase_value(value, is_java_opt=False, is_reduce_memory=False):
+def increase_value(value, delta_mb=1024, is_java_opt=False, is_reduce_memory=False):
     if value.startswith('${'):
         if is_reduce_memory:
-            return '-Xmx3584M'
-        return '4096'
+            return f'-Xmx{delta_mb - 512}M'
+        return str(delta_mb)
     elif value.isdigit():
-        return str(int(value) + 1024)
+        return str(int(value) + delta_mb)
     elif re.match(r'-Xmx\d+[mM]', value):
         match = re.match(r'-Xmx(\d+)([mM])', value)
         if match:
-            new_val = int(match.group(1)) + 1024
+            new_val = int(match.group(1)) + delta_mb
             return f'-Xmx{new_val}{match.group(2)}'
     return value
 
-def process_xml(input_file):
+def process_xml(input_file, delta_mb):
     tree = ET.parse(input_file)
     root = tree.getroot()
 
@@ -100,7 +100,7 @@ def process_xml(input_file):
             is_java_opt = 'java.opts' in name
             is_reduce_memory = name == 'mapreduce.reduce.memory.mb'
 
-            new_value = increase_value(value, is_java_opt, is_reduce_memory)
+            new_value = increase_value(value, delta_mb=delta_mb, is_java_opt=is_java_opt, is_reduce_memory=is_reduce_memory)
 
             if new_value != value:
                 print(f"Modifying property '{name}': '{value}' -> '{new_value}'")
@@ -116,46 +116,42 @@ def process_xml(input_file):
         print("No properties were updated in the XML file.")
 
 def cleanup_local_file(file_path):
-    """Delete the local file after processing."""
     try:
         os.remove(file_path)
         print(f"Local file '{file_path}' deleted successfully.")
     except Exception as e:
         print(f"Failed to delete local file '{file_path}': {e}")
 
-def process_oozie_workflow(coord_action_id):
-    #Main workflow processing logic.
+def process_oozie_workflow(coord_action_id, delta_mb):
     check_oozie_action_status(coord_action_id)
-
-    # Uncomment these lines in production:
     print(f"\nProcessing Oozie Coordination Action ID: {coord_action_id}")
     workflow_id = extract_workflow_id(coord_action_id)
     print(f"Extracted Workflow ID: {workflow_id}")
     hadoop_path = extract_hadoop_workflow_path(workflow_id)
     print(f"Retrieved Hadoop Path: {hadoop_path}")
 
-    # TEMP path override for testing
-    #hadoop_path = "temp/gam_spray_hourly_workflow.xml"
+
+    #hadoop_path="temp/gam_spray_hourly_workflow.xml" (for testing)
+
 
     xml_file = download_workflow_xml(hadoop_path)
     print(f"Downloaded workflow XML file: {xml_file}")
 
     backup_workflow_xml(hadoop_path)
-
-    process_xml(xml_file)
-
-    upload_workflow_xml(xml_file, hadoop_path)
-
-    cleanup_local_file(xml_file)
     
+    process_xml(xml_file, delta_mb)
+    upload_workflow_xml(xml_file, hadoop_path)
+    cleanup_local_file(xml_file)
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python3 backup_working.py <coord-id@action-id>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Update memory settings in Oozie workflow XML.")
+    parser.add_argument("coord_action_id", help="Oozie Coord Action ID (e.g., coord-id@action-id)")
+    parser.add_argument("-add", type=int, default=1, help="Number of GB (1024 MB units) to add (default: 1GB)")
 
-    coord_action_id = sys.argv[1]
-    process_oozie_workflow(coord_action_id)
+    args = parser.parse_args()
+    delta_mb = args.add * 1024
+
+    process_oozie_workflow(args.coord_action_id, delta_mb)
 
 if __name__ == "__main__":
     main()

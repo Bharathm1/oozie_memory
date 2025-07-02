@@ -165,9 +165,16 @@ def main():
     parser.add_argument("-yarn", action="store_true", help="Only increase yarn.app.mapreduce.* memory settings")
 
     args = parser.parse_args()
-    delta_mb = args.add * 1024
+    coord_action_id = args.coord_action_id.strip()
 
-    process_oozie_workflow(args.coord_action_id, delta_mb, yarn_only=args.yarn)
+    # Validate format: must contain '@' and have non-empty parts before and after '@'
+    if '@' not in coord_action_id or not all(part.strip() for part in coord_action_id.split('@', 1)):
+        print("Error: Invalid Coord Action ID. Must be in the format 'coord-id@action-id'.")
+        sys.exit(1)
+
+    delta_mb = args.add * 1024
+    process_oozie_workflow(coord_action_id, delta_mb, yarn_only=args.yarn)
+
 
 if __name__ == "__main__":
     main()

@@ -141,14 +141,14 @@ def cleanup_local_file(file_path):
         print(f"Failed to delete local file '{file_path}': {e}")
 
 def process_oozie_workflow(coord_action_id, delta_mb, yarn_only):
-    """check_oozie_action_status(coord_action_id)
+    check_oozie_action_status(coord_action_id)
     print(f"\nProcessing Oozie Coordination Action ID: {coord_action_id}")
     workflow_id = extract_workflow_id(coord_action_id)
     print(f"Extracted Workflow ID: {workflow_id}")
     hadoop_path = extract_hadoop_workflow_path(workflow_id)
-    print(f"Retrieved Hadoop Path: {hadoop_path}")"""
+    print(f"Retrieved Hadoop Path: {hadoop_path}")
 
-    hadoop_path = "temp/gam_spray_hourly_workflow.xml_bak"
+    #hadoop_path = "temp/gam_spray_hourly_workflow.xml_bak" (can be used for testing memory update variations)
 
     xml_file = download_workflow_xml(hadoop_path)
     print(f"Downloaded workflow XML file: {xml_file}")

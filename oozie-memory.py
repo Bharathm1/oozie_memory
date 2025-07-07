@@ -56,14 +56,13 @@ def upload_workflow_xml(local_file, hadoop_path):
     print(f"Updated XML file successfully uploaded to: {hadoop_path}")
 
 def increase_yarn_value(value, delta_mb):
-    """Handles -Xmx4096M style strings or integers."""
     if value.startswith('-Xmx') and value.endswith('M'):
         num = int(value[4:-1])
         return f"-Xmx{num + delta_mb}M"
     elif value.isdigit():
         return str(int(value) + delta_mb)
     else:
-        return value  # Unchanged if not matching expected format
+        return value
 
 def increase_general_value(value, delta_mb=1024, is_java_opt=False, is_reduce_memory=False):
     if value.startswith('${'):
@@ -148,15 +147,23 @@ def process_oozie_workflow(coord_action_id, delta_mb, yarn_only):
     hadoop_path = extract_hadoop_workflow_path(workflow_id)
     print(f"Retrieved Hadoop Path: {hadoop_path}")
 
-    #hadoop_path = "temp/gam_spray_hourly_workflow.xml_bak" (can be used for testing memory update variations)
+    #hadoop_path = "temp/gam_spray_hourly_workflow.xml" testing purpouses in Nest PT
 
-    xml_file = download_workflow_xml(hadoop_path)
+    
+    HADOOP_WORKFLOW_XML_PATH = hadoop_path
+    print(f"\nHADOOP_WORKFLOW_XML_PATH = {HADOOP_WORKFLOW_XML_PATH}\n")
+
+    xml_file = download_workflow_xml(HADOOP_WORKFLOW_XML_PATH)
     print(f"Downloaded workflow XML file: {xml_file}")
 
-    backup_workflow_xml(hadoop_path)
+    backup_workflow_xml(HADOOP_WORKFLOW_XML_PATH)
     process_xml(xml_file, delta_mb, yarn_only=yarn_only)
-    upload_workflow_xml(xml_file, hadoop_path)
+    upload_workflow_xml(xml_file, HADOOP_WORKFLOW_XML_PATH)
     cleanup_local_file(xml_file)
+
+    print("\nPlease note")
+
+    print(f"\nHADOOP_WORKFLOW_XML_PATH = {HADOOP_WORKFLOW_XML_PATH}\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Update memory settings in Oozie workflow XML.")
@@ -167,14 +174,12 @@ def main():
     args = parser.parse_args()
     coord_action_id = args.coord_action_id.strip()
 
-    # Validate format: must contain '@' and have non-empty parts before and after '@'
     if '@' not in coord_action_id or not all(part.strip() for part in coord_action_id.split('@', 1)):
         print("Error: Invalid Coord Action ID. Must be in the format 'coord-id@action-id'.")
         sys.exit(1)
 
     delta_mb = args.add * 1024
     process_oozie_workflow(coord_action_id, delta_mb, yarn_only=args.yarn)
-
 
 if __name__ == "__main__":
     main()
